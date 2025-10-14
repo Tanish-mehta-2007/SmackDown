@@ -1,0 +1,7 @@
+{
+  "name": "SmackDown",
+  "description": "A web app for a Smart Punching Bag Game that shows a live simulated score and a leaderboard for players. It includes a settings page for managing the game.",
+  "requestFramePermissions": [
+    "serial"
+  ]
+}
