@@ -157,62 +157,103 @@ const PlayPage: React.FC<PlayPageProps> = ({ leaderboard, playerName, setPlayerN
       return;
     }
 
+    if (!window.isSecureContext) {
+      showToast('Web Serial requires HTTPS or localhost. Serve the app over HTTPS or use localhost to access the device.');
+      return;
+    }
+
     setStatus('connecting');
     setFinalScore(null);
 
-    let reader: ReadableStreamDefaultReader<string> | undefined;
-
+    // We'll use the Uint8Array reader and TextDecoder for broad compatibility
+    let uintReader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     try {
       const port = await navigator.serial.requestPort();
       portRef.current = port;
-      await port.open({ baudRate: 9600 });
+
+      try {
+        await port.open({ baudRate: 9600 });
+      } catch (openErr: any) {
+        console.error('Failed to open serial port:', openErr);
+        showToast(`Failed to open port: ${openErr?.message ?? openErr}`);
+        setStatus('error');
+        // If open failed, try to close and clear ref
+        try {
+          await port.close();
+        } catch (_) {}
+        portRef.current = null;
+        return;
+      }
+
       setStatus('connected');
       showToast('Device connected! Punch now!');
-      
-      const textDecoder = new TextDecoderStream();
-      port.readable.pipeTo(textDecoder.writable);
-      reader = textDecoder.readable.getReader();
+
+      const decoder = new TextDecoder();
+      uintReader = port.readable.getReader();
 
       let lineBuffer = '';
-      while (portRef.current) {
-        const { value, done } = await reader.read();
-        if (done) {
-          break;
-        }
-        
-        lineBuffer += value;
+      let received = false;
+
+      while (portRef.current && !received) {
+        const { value, done } = await uintReader.read();
+        if (done) break;
+        if (!value) continue;
+
+        // Decode bytes into text (streaming)
+        lineBuffer += decoder.decode(value, { stream: true });
         const lines = lineBuffer.split(/\r?\n/);
-        
-        if (lines.length > 1) {
-          const scoreLine = lines[0].trim();
-          if (scoreLine) { // Process only non-empty lines
-            const score = parseInt(scoreLine, 10);
-            
-            if (!isNaN(score) && score >= 0) {
-              setFinalScore(score);
-              await addScore(score);
+
+        // Process all complete lines (except possibly last partial)
+        for (let i = 0; i < lines.length - 1; i++) {
+          const raw = lines[i].trim();
+          if (!raw) continue;
+
+          // Try to extract a numeric score from common formats:
+          // "Score: 42", "SCORE=42", or just "42"
+          const m = raw.match(/score\s*[:=]?\s*(\d{1,3})/i) || raw.match(/^(\d{1,3})$/);
+          if (m) {
+            const scoreNum = parseInt(m[1], 10);
+            if (!isNaN(scoreNum) && scoreNum >= 0) {
+              // Got a valid score
+              setFinalScore(scoreNum);
+              try {
+                await addScore(scoreNum);
+              } catch (err) {
+                console.error('Failed to add score to backend', err);
+              }
               setStatus('finished');
-              break; 
+              received = true;
+              break;
+            }
+          } else {
+            // If line doesn't match exact score format, still attempt to show any numeric value live
+            const maybeNum = raw.match(/(\d{1,3})/);
+            if (maybeNum) {
+              const liveVal = parseInt(maybeNum[1], 10);
+              if (!isNaN(liveVal)) setFinalScore(liveVal);
             }
           }
-          lineBuffer = lines.slice(1).join('\r\n');
         }
+
+        // Keep the last (possibly partial) line in the buffer
+        lineBuffer = lines[lines.length - 1];
       }
     } catch (err: any) {
-      if (err.name !== 'NotFoundError') { // Ignore error if user cancels port selection
+      if (err?.name !== 'NotFoundError') {
         console.error('Serial connection error:', err);
+        showToast(`Connection failed: ${err?.message ?? err}`);
         setStatus('error');
-        showToast('Connection failed. Please try again.');
       } else {
+        // User cancelled the port selection dialog
         setStatus('disconnected');
       }
     } finally {
-      if (reader) {
-        await reader.cancel().catch(() => {});
-        reader.releaseLock();
+      if (uintReader) {
+        try { await uintReader.cancel(); } catch (_) {}
+        try { uintReader.releaseLock(); } catch (_) {}
       }
       if (portRef.current) {
-        await portRef.current.close().catch(() => {});
+        try { await portRef.current.close(); } catch (_) {}
         portRef.current = null;
       }
       setStatus(currentStatus => (currentStatus === 'connected' || currentStatus === 'connecting' ? 'disconnected' : currentStatus));
@@ -234,7 +275,7 @@ const PlayPage: React.FC<PlayPageProps> = ({ leaderboard, playerName, setPlayerN
 
   return (
     <div>
-      <h2 className="text-2xl sm:text-4xl text-center font-bold mb-8 tracking-wider">Welcome to the Smart Punching Bag Game</h2>
+      <h2 className="text-2xl sm:text-4xl text-center font-bold mb-8 tracking-wider">Welcome to SmackDown.</h2>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         <PlayerPanel
           playerName={playerName}

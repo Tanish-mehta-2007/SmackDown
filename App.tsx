@@ -18,7 +18,10 @@ const App: React.FC = () => {
   const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('127.');
   const API_BASE_URL = isProduction
     ? 'https://your-smackdown-backend.onrender.com' // IMPORTANT: Replace with your actual Render backend URL
-    : 'http://localhost:5000';
+    : 'http://localhost:5555';
+
+  // Log the API base URL so it's easy to debug network calls in DevTools/Console
+  console.log('API_BASE_URL =', API_BASE_URL);
 
 
   const showToast = (message: string) => {
@@ -73,14 +76,22 @@ const App: React.FC = () => {
         },
         body: JSON.stringify({ playerName, score }),
       });
-      if (!response.ok) throw new Error('Failed to save score');
+      if (!response.ok) {
+        // try to get server error details
+        let detail = '';
+        try {
+          const txt = await response.text();
+          detail = txt;
+        } catch (_) {}
+        throw new Error(`Failed to save score: ${response.status} ${response.statusText} ${detail}`);
+      }
       
       // After successfully saving, refresh the leaderboard to show the new score
       await fetchLeaderboard(); 
       showToast(`Score of ${score} saved for ${playerName}!`);
     } catch (error) {
       console.error("Failed to add score:", error);
-      showToast('Could not save your score.');
+      showToast((error as Error).message || 'Could not save your score.');
     }
   };
 

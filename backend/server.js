@@ -7,33 +7,47 @@ const app = express();
 
 // --- Middleware ---
 // Production-ready CORS setup
-const FRONTEND_URL = process.env.FRONTEND_URL;
+// Normalize FRONTEND_URL: trim and strip surrounding quotes if present
+let FRONTEND_URL = process.env.FRONTEND_URL;
+if (typeof FRONTEND_URL === 'string') {
+  FRONTEND_URL = FRONTEND_URL.trim().replace(/^"|"$/g, '');
+}
 if (!FRONTEND_URL) {
-  console.warn("WARNING: FRONTEND_URL is not set. For production, this should be the URL of your deployed frontend.");
+  console.warn("WARNING: FRONTEND_URL is not set. For production, this should be the URL of your deployed frontend. Development will allow all origins.");
 }
 const corsOptions = {
-  origin: FRONTEND_URL, // This will be your Firebase Hosting URL in production
+  origin: FRONTEND_URL || undefined, // this will be your Firebase Hosting URL in production
 };
 // Enable CORS. If FRONTEND_URL is not set, it allows all origins (for local development).
-// If it is set, it will only allow requests from that origin.
 app.use(cors(FRONTEND_URL ? corsOptions : undefined));
+
+// Helpful startup logging
+console.log(`CORS origin: ${FRONTEND_URL || 'allow-all (development)'}`);
 
 
 // Parse incoming JSON bodies
 app.use(express.json());
 
 // --- Database Connection ---
-const MONGO_URI = process.env.MONGO_URI;
-
+let MONGO_URI = process.env.MONGO_URI;
+if (typeof MONGO_URI === 'string') {
+  MONGO_URI = MONGO_URI.trim().replace(/^"|"$/g, '');
+}
 if (!MONGO_URI) {
   console.error('FATAL ERROR: MONGO_URI is not defined in your .env file.');
   process.exit(1);
 }
 
+// Log a masked version of the URI for debugging (don't print credentials)
+try {
+  const masked = MONGO_URI.replace(/:\/\/.+@/, '://<credentials>@');
+  console.log('Attempting MongoDB connection to', masked);
+} catch (_) {}
+
 mongoose.connect(MONGO_URI)
   .then(() => console.log('MongoDB connected successfully.'))
   .catch(err => {
-    console.error('MongoDB connection error:', err);
+    console.error('MongoDB connection error:', err && err.message ? err.message : err);
     process.exit(1);
   });
 

@@ -10,10 +10,10 @@ router.get('/', async (req, res) => {
     const scores = await Score.find()
       .sort({ score: -1 }) // Sort by score descending
       .limit(5);        // Get top 5
-    res.json(scores);
+  res.json(scores);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ error: 'Server Error', detail: err.message });
   }
 });
 
@@ -22,9 +22,10 @@ router.get('/', async (req, res) => {
 // @access  Public
 router.post('/', async (req, res) => {
   const { playerName, score } = req.body;
+  console.log('POST /api/leaderboard body:', req.body);
 
   if (!playerName || score === undefined) {
-    return res.status(400).json({ msg: 'Please provide playerName and score' });
+    return res.status(400).json({ error: 'Please provide playerName and score' });
   }
 
   try {
@@ -40,7 +41,7 @@ router.post('/', async (req, res) => {
         res.status(200).json(updatedScore);
       } else {
         // New score is not higher, just return the existing one
-        res.status(200).json(existingScore);
+    res.status(200).json(existingScore);
       }
     } else {
       // Player does not exist, create a new score entry
@@ -54,7 +55,7 @@ router.post('/', async (req, res) => {
     }
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ error: 'Server Error', detail: err.message });
   }
 });
 
@@ -67,7 +68,7 @@ router.delete('/', async (req, res) => {
     res.json({ msg: 'Leaderboard has been reset' });
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ error: 'Server Error', detail: err.message });
   }
 });
 

@@ -16,12 +16,12 @@ const ScoreSchema = new mongoose.Schema({
   },
 });
 
-// Add an index on the score field for faster sorting in queries.
 // This is a best practice for production performance.
 ScoreSchema.index({ score: -1 });
 
 // Use a toJSON transform to match the frontend's expected 'id' field
 // instead of MongoDB's '_id'.
+// Add an index on the score field for faster sorting in queries.
 ScoreSchema.set('toJSON', {
   transform: (document, returnedObject) => {
     returnedObject.id = returnedObject._id.toString();
