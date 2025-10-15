@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+  "build": "vite build",
+  "build:render": "VITE_API_BASE_URL=\"https://smackdown-r2qj.onrender.com\" vite build",
     "preview": "vite preview",
-    "deploy": "firebase deploy --only hosting"
+    "deploy": "firebase deploy --only hosting",
+    "deploy:render": "npm run build:render && firebase deploy --only hosting"
   },
   "dependencies": {
     "react": "^19.2.0",
