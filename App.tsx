@@ -13,17 +13,46 @@ const App: React.FC = () => {
   const [playerName, setPlayerName] = useLocalStorage<string>('smackdown-player', '');
   const [toast, setToast] = useState<{ message: string; show: boolean }>({ message: '', show: false });
 
-  // Prefer explicit Vite env variable VITE_API_BASE_URL if provided (useful for pointing local frontend to Render backend)
+  // Prefer explicit Vite env variable VITE_API_BASE_URL if provided.
+  // For local development (localhost) we force a relative '/api' so Vite's dev proxy is used
+  // and the browser doesn't call the Render URL directly (avoids CORS).
   const envApi = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
-  const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('127.');
-  const API_BASE_URL = envApi && envApi.length > 0
-    ? envApi
-    : isProduction
-      ? 'https://smackdown-r2qj.onrender.com'
-      : 'http://localhost:5555';
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname.startsWith('127.');
+  const isProduction = !isLocalhost;
+
+  let API_BASE_URL: string;
+  if (isLocalhost) {
+    // prefer envApi if explicitly set to '/api', otherwise use '/api' to enable the proxy
+    API_BASE_URL = envApi && envApi.length > 0 ? envApi : '/api';
+  } else {
+    // production behavior: prefer VITE env var if set. This allows using a direct
+    // backend URL when the app was built with VITE_API_BASE_URL (e.g. build:render).
+    if (envApi && envApi.length > 0) {
+      API_BASE_URL = envApi;
+    } else {
+      // Fallback to previous behavior: if hosted on Firebase prefer relative '/api'
+      const host = window.location.hostname;
+      const isFirebaseHost = /(?:web\.app|firebaseapp\.com)$/.test(host);
+      API_BASE_URL = isFirebaseHost ? '/api' : 'https://smackdown-r2qj.onrender.com';
+    }
+  }
 
   // Log the API base URL so it's easy to debug network calls in DevTools/Console
-  console.log('API_BASE_URL =', API_BASE_URL, ' (VITE_API_BASE_URL=', envApi, ')');
+  console.log('API_BASE_URL =', API_BASE_URL, ' (VITE_API_BASE_URL=', envApi, ', isLocalhost=', isLocalhost, ')');
+
+  // Helper to build the runtime API URL. In local dev we force relative '/api' so Vite proxies requests
+  const buildApiUrl = (path: string) => {
+    // path should start with '/' e.g. '/leaderboard' or '/leaderboard'
+    if (isLocalhost) {
+      // ensure a single slash: '/api' + path
+      return `/api${path.startsWith('/') ? path : '/' + path}`;
+    }
+    // production: API_BASE_URL may already be '/api' or a full URL
+    if (API_BASE_URL.endsWith('/') && path.startsWith('/')) {
+      return API_BASE_URL.slice(0, -1) + path;
+    }
+    return API_BASE_URL + path;
+  };
 
 
   const showToast = (message: string) => {
@@ -35,7 +64,7 @@ const App: React.FC = () => {
 
   const fetchLeaderboard = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/leaderboard`);
+  const response = await fetch(buildApiUrl('/leaderboard'));
       if (!response.ok) {
         let detail = '';
         try { detail = await response.text(); } catch (_) {}
@@ -63,7 +92,7 @@ const App: React.FC = () => {
   const resetLeaderboard = async () => {
     try {
       // FIX: Complete the truncated fetch call to reset the leaderboard.
-      const response = await fetch(`${API_BASE_URL}/api/leaderboard`, {
+      const response = await fetch(buildApiUrl('/leaderboard'), {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Failed to reset leaderboard');
@@ -82,7 +111,7 @@ const App: React.FC = () => {
       return;
     }
     try {
-      const response = await fetch(`${API_BASE_URL}/api/leaderboard`, {
+      const response = await fetch(buildApiUrl('/leaderboard'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

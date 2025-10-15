@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
+const cors = require('cors');
 
 const app = express();
 
@@ -20,6 +21,15 @@ console.log(`FRONTEND_URL configured as: ${FRONTEND_URL || 'not set'}`);
 
 // Parse incoming JSON bodies
 app.use(express.json());
+
+// Enable CORS. If FRONTEND_URL is configured, allow only that origin. Otherwise allow all origins (development).
+if (FRONTEND_URL && FRONTEND_URL.length > 0) {
+  app.use(cors({ origin: FRONTEND_URL }));
+  console.log('CORS enabled for:', FRONTEND_URL);
+} else {
+  app.use(cors());
+  console.log('CORS enabled for all origins (development)');
+}
 
 // --- Database Connection ---
 let MONGO_URI = process.env.MONGO_URI;
