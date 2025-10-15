@@ -13,15 +13,17 @@ const App: React.FC = () => {
   const [playerName, setPlayerName] = useLocalStorage<string>('smackdown-player', '');
   const [toast, setToast] = useState<{ message: string; show: boolean }>({ message: '', show: false });
 
-  // Dynamically set the API URL based on the hostname.
-  // This allows the app to work in both local development and production without code changes.
+  // Prefer explicit Vite env variable VITE_API_BASE_URL if provided (useful for pointing local frontend to Render backend)
+  const envApi = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
   const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('127.');
-  const API_BASE_URL = isProduction
-    ? 'https://your-smackdown-backend.onrender.com' // IMPORTANT: Replace with your actual Render backend URL
-    : 'http://localhost:5555';
+  const API_BASE_URL = envApi && envApi.length > 0
+    ? envApi
+    : isProduction
+      ? 'https://smackdown-r2qj.onrender.com'
+      : 'http://localhost:5555';
 
   // Log the API base URL so it's easy to debug network calls in DevTools/Console
-  console.log('API_BASE_URL =', API_BASE_URL);
+  console.log('API_BASE_URL =', API_BASE_URL, ' (VITE_API_BASE_URL=', envApi, ')');
 
 
   const showToast = (message: string) => {
@@ -34,12 +36,23 @@ const App: React.FC = () => {
   const fetchLeaderboard = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/leaderboard`);
-      if (!response.ok) throw new Error('Network response was not ok');
-      const data = await response.json();
+      if (!response.ok) {
+        let detail = '';
+        try { detail = await response.text(); } catch (_) {}
+        throw new Error(`Failed to fetch leaderboard: ${response.status} ${response.statusText} ${detail}`);
+      }
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseErr) {
+        const txt = await response.text().catch(() => '<unreadable response>');
+        throw new Error(`Invalid JSON from leaderboard: ${parseErr} - ${txt}`);
+      }
       setLeaderboard(data);
     } catch (error) {
       console.error("Failed to fetch leaderboard:", error);
-      showToast('Could not load scores.');
+      // Show the detailed message so you can debug what went wrong
+      showToast((error as Error).message || 'Could not load scores.');
     }
   };
   

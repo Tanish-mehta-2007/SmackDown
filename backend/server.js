@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
 
 const app = express();
 
@@ -15,14 +14,8 @@ if (typeof FRONTEND_URL === 'string') {
 if (!FRONTEND_URL) {
   console.warn("WARNING: FRONTEND_URL is not set. For production, this should be the URL of your deployed frontend. Development will allow all origins.");
 }
-const corsOptions = {
-  origin: FRONTEND_URL || undefined, // this will be your Firebase Hosting URL in production
-};
-// Enable CORS. If FRONTEND_URL is not set, it allows all origins (for local development).
-app.use(cors(FRONTEND_URL ? corsOptions : undefined));
-
-// Helpful startup logging
-console.log(`CORS origin: ${FRONTEND_URL || 'allow-all (development)'}`);
+// Helpful startup logging (CORS removed per request)
+console.log(`FRONTEND_URL configured as: ${FRONTEND_URL || 'not set'}`);
 
 
 // Parse incoming JSON bodies
@@ -54,6 +47,11 @@ mongoose.connect(MONGO_URI)
 
 // --- API Routes ---
 app.use('/api/leaderboard', require('./routes/leaderboard'));
+
+// Lightweight health endpoint (no DB access) to validate server + CORS quickly
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, corsOrigin: FRONTEND_URL || 'allow-localhost', env: process.env.NODE_ENV || 'development' });
+});
 
 // --- Server Startup ---
 const PORT = process.env.PORT || 5000;
