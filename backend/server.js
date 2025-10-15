@@ -11,6 +11,8 @@ const app = express();
 let FRONTEND_URL = process.env.FRONTEND_URL;
 if (typeof FRONTEND_URL === 'string') {
   FRONTEND_URL = FRONTEND_URL.trim().replace(/^"|"$/g, '');
+  // Remove any trailing slash so origin comparisons are consistent
+  FRONTEND_URL = FRONTEND_URL.replace(/\/$/, '');
 }
 if (!FRONTEND_URL) {
   console.warn("WARNING: FRONTEND_URL is not set. For production, this should be the URL of your deployed frontend. Development will allow all origins.");

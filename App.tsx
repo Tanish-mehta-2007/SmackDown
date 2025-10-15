@@ -47,11 +47,26 @@ const App: React.FC = () => {
       // ensure a single slash: '/api' + path
       return `/api${path.startsWith('/') ? path : '/' + path}`;
     }
-    // production: API_BASE_URL may already be '/api' or a full URL
-    if (API_BASE_URL.endsWith('/') && path.startsWith('/')) {
-      return API_BASE_URL.slice(0, -1) + path;
+    // production: API_BASE_URL may be '/api', a full URL that already contains '/api',
+    // or a full URL to the host (e.g. 'https://...onrender.com').
+    // Normalize so requests go to the backend's /api/* endpoints.
+    const base = API_BASE_URL.replace(/\/$/, '');
+    // If API_BASE_URL is the relative '/api', just join it with path
+    if (base === '/api') {
+      return `/api${path.startsWith('/') ? path : '/' + path}`;
     }
-    return API_BASE_URL + path;
+    // If base looks like a full URL (http or //) then ensure it contains '/api'
+    const isFullUrl = /^https?:\/\//i.test(base) || /^\/\//.test(base);
+    if (isFullUrl) {
+      // If the base already contains '/api' path segment, use it directly
+      if (/\/api(\/|$)/.test(base)) {
+        return base + (path.startsWith('/') ? path : '/' + path);
+      }
+      // Otherwise insert '/api' between the host and the path
+      return base + '/api' + (path.startsWith('/') ? path : '/' + path);
+    }
+    // Fallback: just concatenate
+    return base + (path.startsWith('/') ? path : '/' + path);
   };
 
 
